@@ -19,6 +19,12 @@ public class Engine
 
     private Level _currentLevel = new();
     private PlayerObject? _player;
+    
+    // Game state tracking
+    private bool _isGameOver = false;
+    private bool _showRestartMessage = false;
+    private DateTimeOffset _gameOverTime = DateTimeOffset.MinValue;
+    private const double MESSAGE_BLINK_INTERVAL = 0.8; // seconds
 
     private DateTimeOffset _lastUpdate = DateTimeOffset.Now;
 
@@ -87,6 +93,14 @@ public class Engine
         {
             return;
         }
+        
+        if (_isGameOver && _input.IsKeyRPressed())
+        {
+            RestartGame();
+            return;
+        }
+        
+        _player.UpdateInvulnerability();
 
         double up = _input.IsUpPressed() ? 1.0 : 0.0;
         double down = _input.IsDownPressed() ? 1.0 : 0.0;
@@ -107,6 +121,12 @@ public class Engine
         {
             AddBomb(_player.Position.X, _player.Position.Y, false);
         }
+        
+        if (_player.IsDead())
+        {
+            _isGameOver = true;
+            _gameOverTime = currentTime;
+        }
     }
 
     public void RenderFrame()
@@ -119,6 +139,11 @@ public class Engine
 
         RenderTerrain();
         RenderAllObjects();
+
+        if (_isGameOver)
+        {
+            RenderGameOverMessage();
+        }
 
         _renderer.PresentFrame();
     }
@@ -142,14 +167,13 @@ public class Engine
             if (_player == null)
             {
                 continue;
-            }
-
-            var tempGameObject = (TemporaryGameObject)gameObject!;
+            }            var tempGameObject = (TemporaryGameObject)gameObject!;
             var deltaX = Math.Abs(_player.Position.X - tempGameObject.Position.X);
             var deltaY = Math.Abs(_player.Position.Y - tempGameObject.Position.Y);
             if (deltaX < 32 && deltaY < 32)
             {
-                _player.GameOver();
+                
+                _player.TakeDamage(25); 
             }
         }
 
@@ -214,5 +238,46 @@ public class Engine
 
         TemporaryGameObject bomb = new(spriteSheet, 2.1, (worldCoords.X, worldCoords.Y));
         _gameObjects.Add(bomb.Id, bomb);
+    }    private void RenderGameOverMessage()
+    {
+        double elapsedSeconds = (_lastUpdate - _gameOverTime).TotalSeconds;
+        if (elapsedSeconds < 0)
+        {
+            return;
+        }
+
+        _renderer.SetDrawColor(0, 0, 0, 200);
+        var overlayRect = new Rectangle<int>(0, 0, _renderer.GetWidth(), _renderer.GetHeight());
+        _renderer.FillRect(overlayRect);
+
+        bool showMessage = (_showRestartMessage = elapsedSeconds % (MESSAGE_BLINK_INTERVAL * 2) < MESSAGE_BLINK_INTERVAL);
+
+        if (showMessage)
+        {
+            string gameOverMsg = "GAME OVER";
+            Vector2D<int> gameOverSize = _renderer.MeasureText(gameOverMsg, "");
+            int gameOverX = (_renderer.GetWidth() - gameOverSize.X) / 2;
+            int gameOverY = (_renderer.GetHeight() - gameOverSize.Y) / 2 - 30;
+            _renderer.DrawText(gameOverMsg, gameOverX, gameOverY, "", 255, 0, 0, 255);
+
+            string restartMsg = "Press R to Restart";
+            Vector2D<int> restartSize = _renderer.MeasureText(restartMsg, "");
+            int restartX = (_renderer.GetWidth() - restartSize.X) / 2;
+            int restartY = (_renderer.GetHeight() - restartSize.Y) / 2 + 30;
+            _renderer.DrawText(restartMsg, restartX, restartY, "", 255, 255, 255, 255);
+        }
+    }private void RestartGame()
+    {
+        _scriptEngine.UnloadAll();
+        
+        _gameObjects.Clear();
+        _tileIdMap.Clear();
+        _loadedTileSets.Clear();
+        _isGameOver = false;
+        _showRestartMessage = false;
+        _gameOverTime = DateTimeOffset.MinValue;
+        _lastUpdate = DateTimeOffset.Now;
+
+        SetupWorld();
     }
 }

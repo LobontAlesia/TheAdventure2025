@@ -4,7 +4,16 @@ namespace TheAdventure.Models;
 
 public class PlayerObject : RenderableGameObject
 {
-    private const int _speed = 128; // pixels per second
+    private const int _speed = 128;
+
+    public int MaxHealth { get; private set; } = 100;
+    public int CurrentHealth { get; private set; }
+    public bool IsInvulnerable { get; private set; } = false;
+    private DateTimeOffset _invulnerabilityEndTime = DateTimeOffset.MinValue;
+    private bool _isFlashing = false;
+    private DateTimeOffset _lastFlashTime = DateTimeOffset.MinValue;
+    private const double INVULNERABILITY_DURATION = 1.5;
+    private const double FLASH_INTERVAL = 0.15; 
 
     public enum PlayerStateDirection
     {
@@ -28,6 +37,7 @@ public class PlayerObject : RenderableGameObject
 
     public PlayerObject(SpriteSheet spriteSheet, int x, int y) : base(spriteSheet, (x, y))
     {
+        CurrentHealth = MaxHealth;
         SetState(PlayerState.Idle, PlayerStateDirection.Down);
     }
 
@@ -69,6 +79,48 @@ public class PlayerObject : RenderableGameObject
     public void GameOver()
     {
         SetState(PlayerState.GameOver, PlayerStateDirection.None);
+    }
+
+    public void TakeDamage(int amount)
+    {
+        if (IsInvulnerable || State.State == PlayerState.GameOver)
+        {
+            return;
+        }
+
+        CurrentHealth = Math.Max(0, CurrentHealth - amount);
+
+        IsInvulnerable = true;
+        _invulnerabilityEndTime = DateTimeOffset.Now.AddSeconds(INVULNERABILITY_DURATION);
+        _lastFlashTime = DateTimeOffset.Now;
+        _isFlashing = true;
+
+        if (CurrentHealth <= 0)
+        {
+            GameOver();
+        }
+    }
+
+    public void UpdateInvulnerability()
+    {
+        if (!IsInvulnerable)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.Now;
+
+        if ((now - _lastFlashTime).TotalSeconds >= FLASH_INTERVAL)
+        {
+            _isFlashing = !_isFlashing;
+            _lastFlashTime = now;
+        }
+
+        if (now >= _invulnerabilityEndTime)
+        {
+            IsInvulnerable = false;
+            _isFlashing = false;
+        }
     }
 
     public void Attack()
@@ -117,7 +169,7 @@ public class PlayerObject : RenderableGameObject
         else
         {
             newState = PlayerState.Move;
-            
+
             if (y < Position.Y && newDirection != PlayerStateDirection.Up)
             {
                 newDirection = PlayerStateDirection.Up;
@@ -145,5 +197,51 @@ public class PlayerObject : RenderableGameObject
         }
 
         Position = (x, y);
+    }
+
+    public bool IsDead()
+    {
+        return State.State == PlayerState.GameOver || CurrentHealth <= 0;
+    }
+
+    public override void Render(GameRenderer renderer)
+    {
+        if (IsInvulnerable && !_isFlashing)
+        {
+            return;
+        }
+
+        base.Render(renderer);
+
+        RenderHealthBar(renderer);
+    }
+
+    private void RenderHealthBar(GameRenderer renderer)
+    {
+        int barWidth = 48; 
+        int barHeight = 6;
+        int barYOffset = -15; 
+
+        renderer.SetDrawColor(255, 0, 0, 255);
+        var bgRect = new Rectangle<int>(
+            Position.X - barWidth / 2,
+            Position.Y - barHeight / 2 + barYOffset,
+            barWidth,
+            barHeight
+        );
+        renderer.FillRect(bgRect);
+
+        renderer.SetDrawColor(0, 255, 0, 255);
+        var healthWidth = (int)((float)CurrentHealth / MaxHealth * barWidth);
+        var healthRect = new Rectangle<int>(
+            Position.X - barWidth / 2,
+            Position.Y - barHeight / 2 + barYOffset,
+            healthWidth,
+            barHeight
+        );
+        renderer.FillRect(healthRect);
+
+        renderer.SetDrawColor(255, 255, 255, 255);
+        renderer.DrawRect(bgRect);
     }
 }

@@ -22,9 +22,9 @@ public class ScriptEngine
             rtPath + "System.Runtime.dll",
             rtPath + "System.Console.dll",
             rtPath + "netstandard.dll",
-            rtPath + "System.Text.RegularExpressions.dll", // IMPORTANT!
+            rtPath + "System.Text.RegularExpressions.dll", 
             rtPath + "System.Linq.dll",
-            rtPath + "System.Linq.Expressions.dll", // IMPORTANT!
+            rtPath + "System.Linq.Expressions.dll", 
             rtPath + "System.IO.dll",
             rtPath + "System.Net.Primitives.dll",
             rtPath + "System.Net.Http.dll",
@@ -41,6 +41,23 @@ public class ScriptEngine
             typeof(IScript).Assembly.Location
         };
         _scriptReferences = references.Select(x => MetadataReference.CreateFromFile(x)).ToArray();
+    }
+
+    public void UnloadAll()
+    {
+        if (_watcher != null)
+        {
+            _watcher.EnableRaisingEvents = false;
+            _watcher.Changed -= OnScriptChanged;
+            _watcher.Deleted -= OnScriptChanged;
+            _watcher.Dispose();
+            _watcher = null;
+        }
+        
+        _scripts.Clear();
+        
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
     }
 
     public void LoadAll(string scriptFolder)

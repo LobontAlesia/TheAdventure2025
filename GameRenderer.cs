@@ -110,4 +110,126 @@ public unsafe class GameRenderer
     {
         _sdl.RenderPresent(_renderer);
     }
+
+    public int GetWidth()
+    {
+        return _window.Size.Width;
+    }
+    
+    public int GetHeight()
+    {
+        return _window.Size.Height;
+    }    public Vector2D<int> MeasureText(string text, string fontPath)
+    {
+        int spacing = 20;
+        return new Vector2D<int>(text.Length * spacing, 32);
+    }    public void DrawText(string text, int x, int y, string fontPath, byte r, byte g, byte b, byte a)
+    {
+        SetDrawColor(r, g, b, a);
+        int charWidth = 16;
+        int charHeight = 32;
+        int spacing = 20;
+        int currentX = x;
+        
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (text[i] == ' ')
+            {
+                currentX += spacing;
+                continue;
+            }
+            
+            switch (char.ToUpper(text[i]))
+            {                case 'O':
+                    _sdl.RenderDrawLine(_renderer, currentX + charWidth/4, y, currentX + charWidth*3/4, y);
+                    _sdl.RenderDrawLine(_renderer, currentX + charWidth*3/4, y, currentX + charWidth, y + charHeight/4);
+                    _sdl.RenderDrawLine(_renderer, currentX + charWidth, y + charHeight/4, currentX + charWidth, y + charHeight*3/4);
+                    _sdl.RenderDrawLine(_renderer, currentX + charWidth, y + charHeight*3/4, currentX + charWidth*3/4, y + charHeight);
+                    _sdl.RenderDrawLine(_renderer, currentX + charWidth*3/4, y + charHeight, currentX + charWidth/4, y + charHeight);
+                    _sdl.RenderDrawLine(_renderer, currentX + charWidth/4, y + charHeight, currentX, y + charHeight*3/4);
+                    _sdl.RenderDrawLine(_renderer, currentX, y + charHeight*3/4, currentX, y + charHeight/4);
+                    _sdl.RenderDrawLine(_renderer, currentX, y + charHeight/4, currentX + charWidth/4, y);
+                    break;
+
+                case 'G':
+                    _sdl.RenderDrawLine(_renderer, currentX + charWidth/4, y, currentX + charWidth*3/4, y);
+                    _sdl.RenderDrawLine(_renderer, currentX + charWidth*3/4, y, currentX + charWidth, y + charHeight/4);
+                    _sdl.RenderDrawLine(_renderer, currentX, y + charHeight/4, currentX, y + charHeight*3/4);
+                    _sdl.RenderDrawLine(_renderer, currentX, y + charHeight*3/4, currentX + charWidth/4, y + charHeight);
+                    _sdl.RenderDrawLine(_renderer, currentX + charWidth/4, y + charHeight, currentX + charWidth*3/4, y + charHeight);
+                    _sdl.RenderDrawLine(_renderer, currentX + charWidth, y + charHeight/2, currentX + charWidth, y + charHeight);
+                    _sdl.RenderDrawLine(_renderer, currentX + charWidth/2, y + charHeight/2, currentX + charWidth, y + charHeight/2);
+                    break;                case 'V':
+                    _sdl.RenderDrawLine(_renderer, currentX, y, currentX + charWidth/4, y + charHeight/2);
+                    _sdl.RenderDrawLine(_renderer, currentX + charWidth/4, y + charHeight/2, currentX + charWidth/2, y + charHeight);
+                    _sdl.RenderDrawLine(_renderer, currentX + charWidth, y, currentX + charWidth*3/4, y + charHeight/2);
+                    _sdl.RenderDrawLine(_renderer, currentX + charWidth*3/4, y + charHeight/2, currentX + charWidth/2, y + charHeight);
+                    break;
+
+                case 'P':
+                    _sdl.RenderDrawLine(_renderer, currentX, y, currentX, y + charHeight);
+                    _sdl.RenderDrawLine(_renderer, currentX, y, currentX + charWidth, y);
+                    _sdl.RenderDrawLine(_renderer, currentX, y + charHeight/2, currentX + charWidth, y + charHeight/2);
+                    _sdl.RenderDrawLine(_renderer, currentX + charWidth, y, currentX + charWidth, y + charHeight/2);
+                    break;
+                      case 'S':
+                    _sdl.RenderDrawLine(_renderer, currentX, y, currentX + charWidth, y);
+                    _sdl.RenderDrawLine(_renderer, currentX, y + charHeight/2, currentX + charWidth, y + charHeight/2);
+                    _sdl.RenderDrawLine(_renderer, currentX, y + charHeight, currentX + charWidth, y + charHeight);
+                    _sdl.RenderDrawLine(_renderer, currentX, y, currentX, y + charHeight/2);
+                    _sdl.RenderDrawLine(_renderer, currentX + charWidth, y + charHeight/2, currentX + charWidth, y + charHeight);
+                    break;
+                    
+                case 'T':
+                    _sdl.RenderDrawLine(_renderer, currentX, y, currentX + charWidth, y);
+                    _sdl.RenderDrawLine(_renderer, currentX + charWidth/2, y, currentX + charWidth/2, y + charHeight);
+                    break;
+                    
+                case 'R':
+                    _sdl.RenderDrawLine(_renderer, currentX, y, currentX, y + charHeight);
+                    _sdl.RenderDrawLine(_renderer, currentX, y, currentX + charWidth, y);
+                    _sdl.RenderDrawLine(_renderer, currentX, y + charHeight/2, currentX + charWidth, y + charHeight/2);
+                    _sdl.RenderDrawLine(_renderer, currentX + charWidth, y, currentX + charWidth, y + charHeight/2);
+                    _sdl.RenderDrawLine(_renderer, currentX + charWidth/2, y + charHeight/2, currentX + charWidth, y + charHeight);
+                    break;
+                      case 'E':
+                    _sdl.RenderDrawLine(_renderer, currentX, y, currentX, y + charHeight);
+                    _sdl.RenderDrawLine(_renderer, currentX, y, currentX + charWidth, y);
+                    _sdl.RenderDrawLine(_renderer, currentX, y + charHeight/2, currentX + charWidth, y + charHeight/2);
+                    _sdl.RenderDrawLine(_renderer, currentX, y + charHeight, currentX + charWidth, y + charHeight);
+                    break;
+                    
+                case 'A':
+                    _sdl.RenderDrawLine(_renderer, currentX, y + charHeight, currentX + charWidth/2, y);
+                    _sdl.RenderDrawLine(_renderer, currentX + charWidth/2, y, currentX + charWidth, y + charHeight);
+                    _sdl.RenderDrawLine(_renderer, currentX + charWidth/4, y + charHeight/2, currentX + charWidth*3/4, y + charHeight/2);
+                    break;
+                    
+                case 'M':
+                    _sdl.RenderDrawLine(_renderer, currentX, y + charHeight, currentX, y);
+                    _sdl.RenderDrawLine(_renderer, currentX, y, currentX + charWidth/2, y + charHeight/2);
+                    _sdl.RenderDrawLine(_renderer, currentX + charWidth/2, y + charHeight/2, currentX + charWidth, y);
+                    _sdl.RenderDrawLine(_renderer, currentX + charWidth, y, currentX + charWidth, y + charHeight);
+                    break;
+                      default:
+                    var rect = new Rectangle<int>(currentX, y, charWidth, charHeight);
+                    _sdl.RenderDrawRect(_renderer, &rect);
+                    break;
+            }
+            
+            currentX += spacing;
+        }
+    }
+
+    public void FillRect(Rectangle<int> rect)
+    {
+        var translatedRect = _camera.ToScreenCoordinates(rect);
+        _sdl.RenderFillRect(_renderer, &translatedRect);
+    }
+    
+    public void DrawRect(Rectangle<int> rect)
+    {
+        var translatedRect = _camera.ToScreenCoordinates(rect);
+        _sdl.RenderDrawRect(_renderer, &translatedRect);
+    }
 }
