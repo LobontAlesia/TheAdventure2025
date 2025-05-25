@@ -25,7 +25,7 @@ public class Engine
     private bool _isGameOver = false;
     private bool _showRestartMessage = false;
     private DateTimeOffset _gameOverTime = DateTimeOffset.MinValue;
-    private const double MESSAGE_BLINK_INTERVAL = 0.8; // seconds
+    private const double MESSAGE_BLINK_INTERVAL = 0.8; 
 
     private DateTimeOffset _lastUpdate = DateTimeOffset.Now;
 
@@ -38,7 +38,7 @@ public class Engine
 
     public void SetupWorld()
     {
-        // Create both players with different starting positions
+        
         _player1 = new PlayerObject(SpriteSheet.Load(_renderer, "Player.json", "Assets"), 100, 100, 1, false); // WASD player
         _player2 = new PlayerObject(SpriteSheet.Load(_renderer, "Player.json", "Assets"), 200, 100, 2, true);  // Arrow keys player
 
@@ -90,15 +90,15 @@ public class Engine
             return;
         }
 
-        // Ambii jucători folosesc tasta M pentru revival
+     
         if (_input.IsKeyMPressed())
         {
-            // Dacă player 1 e viu și player 2 mort, player 1 îl învie pe 2
+            
             if (!_player1.IsDead() && _player2.IsDead() && _player1.CanRevivePlayer(_player2))
             {
                 _player1.RevivePlayer(_player2);
             }
-            // Dacă player 2 e viu și player 1 mort, player 2 îl învie pe 1
+            
             else if (!_player2.IsDead() && _player1.IsDead() && _player2.CanRevivePlayer(_player1))
             {
                 _player2.RevivePlayer(_player1);
@@ -128,25 +128,25 @@ public class Engine
 
         HandleReviveAttempts();
 
-        // Player 1 (WASD)
+      
         double p1Up = _input.IsKeyWPressed() ? 1.0 : 0.0;
         double p1Down = _input.IsKeySPressed() ? 1.0 : 0.0;
         double p1Left = _input.IsKeyAPressed() ? 1.0 : 0.0;
         double p1Right = _input.IsKeyDPressed() ? 1.0 : 0.0;
 
-        // Player 2 (Arrow Keys)
+    
         double p2Up = _input.IsUpPressed() ? 1.0 : 0.0;
         double p2Down = _input.IsDownPressed() ? 1.0 : 0.0;
         double p2Left = _input.IsLeftPressed() ? 1.0 : 0.0;
         double p2Right = _input.IsRightPressed() ? 1.0 : 0.0;
 
-        // Update both players
+       
         _player1.UpdatePosition(p1Up, p1Down, p1Left, p1Right, 48, 48, msSinceLastFrame);
         _player2.UpdatePosition(p2Up, p2Down, p2Left, p2Right, 48, 48, msSinceLastFrame);
         
         _scriptEngine.ExecuteAll(this);
 
-        // Game over if both players are dead
+
         if (_player1.IsDead() && _player2.IsDead())
         {
             _isGameOver = true;
@@ -159,7 +159,7 @@ public class Engine
         _renderer.SetDrawColor(0, 0, 0, 255);
         _renderer.ClearScreen();
 
-        // Camera follows midpoint between players
+    
         if (_player1 != null && _player2 != null)
         {
             var midX = (_player1.Position.X + _player2.Position.X) / 2;
@@ -208,15 +208,15 @@ public class Engine
         
         if (deltaX < 32 && deltaY < 32)
         {
-            player.Heal(25); // Adaugă 25 puncte de viață
-            powerUp.ForceExpire(); // Face power-up-ul să dispară
+            player.Heal(25); 
+            powerUp.ForceExpire();
         }
     }    public void RenderAllObjects()
     {
         var toRemove = new List<int>();
         var toCollisionCheck = new List<TemporaryGameObject>();
         
-        // Mai întâi renderăm toate obiectele și le adăugăm pentru verificări
+    
         foreach (var gameObject in GetRenderables())
         {
             gameObject.Render(_renderer);
@@ -233,7 +233,7 @@ public class Engine
             }
         }
 
-        // Check collisions with both players
+
         foreach (var obj in toCollisionCheck)
         {
             if (_player1 != null)
@@ -275,13 +275,13 @@ public class Engine
             }
         }
 
-        // Remove expired objects after collision checks
+    
         foreach (var id in toRemove)
         {
             _gameObjects.Remove(id);
         }
 
-        // Render both players
+    
         _player1?.Render(_renderer);
         _player2?.Render(_renderer);    }
 
