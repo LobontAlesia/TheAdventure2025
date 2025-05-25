@@ -5,6 +5,8 @@ namespace TheAdventure.Models;
 public class PlayerObject : RenderableGameObject
 {
     private const int _speed = 128;
+    public int PlayerId { get; private set; }
+    public bool UsesArrowKeys { get; private set; }
 
     public int MaxHealth { get; private set; } = 100;
     public int CurrentHealth { get; private set; }
@@ -14,6 +16,10 @@ public class PlayerObject : RenderableGameObject
     private DateTimeOffset _lastFlashTime = DateTimeOffset.MinValue;
     private const double INVULNERABILITY_DURATION = 1.5;
     private const double FLASH_INTERVAL = 0.15; 
+
+    public const int REVIVE_HEALTH_COST = 30;
+    public const int REVIVE_HEALTH_AMOUNT = 50;
+    private const double REVIVE_RANGE = 64;
 
     public enum PlayerStateDirection
     {
@@ -35,8 +41,10 @@ public class PlayerObject : RenderableGameObject
 
     public (PlayerState State, PlayerStateDirection Direction) State { get; private set; }
 
-    public PlayerObject(SpriteSheet spriteSheet, int x, int y) : base(spriteSheet, (x, y))
+    public PlayerObject(SpriteSheet spriteSheet, int x, int y, int playerId, bool usesArrowKeys) : base(spriteSheet, (x, y))
     {
+        PlayerId = playerId;
+        UsesArrowKeys = usesArrowKeys;
         CurrentHealth = MaxHealth;
         SetState(PlayerState.Idle, PlayerStateDirection.Down);
     }
@@ -44,11 +52,9 @@ public class PlayerObject : RenderableGameObject
     public void SetState(PlayerState state)
     {
         SetState(state, State.Direction);
-    }
-
-    public void SetState(PlayerState state, PlayerStateDirection direction)
+    }    public void SetState(PlayerState state, PlayerStateDirection direction)
     {
-        if (State.State == PlayerState.GameOver)
+        if (State.State == PlayerState.GameOver && state != PlayerState.Idle)
         {
             return;
         }
@@ -202,6 +208,44 @@ public class PlayerObject : RenderableGameObject
     public bool IsDead()
     {
         return State.State == PlayerState.GameOver || CurrentHealth <= 0;
+    }
+
+    public bool CanRevivePlayer(PlayerObject otherPlayer)
+    {
+        if (!otherPlayer.IsDead() || IsDead() || CurrentHealth <= REVIVE_HEALTH_COST)
+        {
+            return false;
+        }
+
+        var deltaX = Math.Abs(Position.X - otherPlayer.Position.X);
+        var deltaY = Math.Abs(Position.Y - otherPlayer.Position.Y);
+        return deltaX <= REVIVE_RANGE && deltaY <= REVIVE_RANGE;
+    }
+
+    public void RevivePlayer(PlayerObject otherPlayer)
+    {
+        if (!CanRevivePlayer(otherPlayer))
+        {
+            return;
+        }
+        CurrentHealth -= REVIVE_HEALTH_COST;
+        otherPlayer.ReceiveRevive();
+    }
+
+    public void ReceiveRevive()
+    {
+        CurrentHealth = REVIVE_HEALTH_AMOUNT;
+        SetState(PlayerState.Idle, PlayerStateDirection.Down);
+    }
+
+    public void Heal(int amount)
+    {
+        if (IsDead())
+        {
+            return; 
+        }
+        
+        CurrentHealth = Math.Min(MaxHealth, CurrentHealth + amount);
     }
 
     public override void Render(GameRenderer renderer)

@@ -18,7 +18,8 @@ public class Engine
     private readonly Dictionary<int, Tile> _tileIdMap = new();
 
     private Level _currentLevel = new();
-    private PlayerObject? _player;
+    private PlayerObject? _player1; // WASD player
+    private PlayerObject? _player2; // Arrow keys player
     
     // Game state tracking
     private bool _isGameOver = false;
@@ -32,13 +33,14 @@ public class Engine
     {
         _renderer = renderer;
         _input = input;
-
         _input.OnMouseClick += (_, coords) => AddBomb(coords.x, coords.y);
     }
 
     public void SetupWorld()
     {
-        _player = new(SpriteSheet.Load(_renderer, "Player.json", "Assets"), 100, 100);
+        // Create both players with different starting positions
+        _player1 = new PlayerObject(SpriteSheet.Load(_renderer, "Player.json", "Assets"), 100, 100, 1, false); // WASD player
+        _player2 = new PlayerObject(SpriteSheet.Load(_renderer, "Player.json", "Assets"), 200, 100, 2, true);  // Arrow keys player
 
         var levelContent = File.ReadAllText(Path.Combine("Assets", "terrain.tmj"));
         var level = JsonSerializer.Deserialize<Level>(levelContent);
@@ -81,6 +83,27 @@ public class Engine
         _currentLevel = level;
 
         _scriptEngine.LoadAll(Path.Combine("Assets", "Scripts"));
+    }    private void HandleReviveAttempts()
+    {
+        if (_player1 == null || _player2 == null)
+        {
+            return;
+        }
+
+        // Ambii jucători folosesc tasta M pentru revival
+        if (_input.IsKeyMPressed())
+        {
+            // Dacă player 1 e viu și player 2 mort, player 1 îl învie pe 2
+            if (!_player1.IsDead() && _player2.IsDead() && _player1.CanRevivePlayer(_player2))
+            {
+                _player1.RevivePlayer(_player2);
+            }
+            // Dacă player 2 e viu și player 1 mort, player 2 îl învie pe 1
+            else if (!_player2.IsDead() && _player1.IsDead() && _player2.CanRevivePlayer(_player1))
+            {
+                _player2.RevivePlayer(_player1);
+            }
+        }
     }
 
     public void ProcessFrame()
@@ -89,7 +112,7 @@ public class Engine
         var msSinceLastFrame = (currentTime - _lastUpdate).TotalMilliseconds;
         _lastUpdate = currentTime;
 
-        if (_player == null)
+        if (_player1 == null || _player2 == null)
         {
             return;
         }
@@ -100,29 +123,31 @@ public class Engine
             return;
         }
         
-        _player.UpdateInvulnerability();
+        _player1.UpdateInvulnerability();
+        _player2.UpdateInvulnerability();
 
-        double up = _input.IsUpPressed() ? 1.0 : 0.0;
-        double down = _input.IsDownPressed() ? 1.0 : 0.0;
-        double left = _input.IsLeftPressed() ? 1.0 : 0.0;
-        double right = _input.IsRightPressed() ? 1.0 : 0.0;
-        bool isAttacking = _input.IsKeyAPressed() && (up + down + left + right <= 1);
-        bool addBomb = _input.IsKeyBPressed();
+        HandleReviveAttempts();
 
-        _player.UpdatePosition(up, down, left, right, 48, 48, msSinceLastFrame);
-        if (isAttacking)
-        {
-            _player.Attack();
-        }
+        // Player 1 (WASD)
+        double p1Up = _input.IsKeyWPressed() ? 1.0 : 0.0;
+        double p1Down = _input.IsKeySPressed() ? 1.0 : 0.0;
+        double p1Left = _input.IsKeyAPressed() ? 1.0 : 0.0;
+        double p1Right = _input.IsKeyDPressed() ? 1.0 : 0.0;
+
+        // Player 2 (Arrow Keys)
+        double p2Up = _input.IsUpPressed() ? 1.0 : 0.0;
+        double p2Down = _input.IsDownPressed() ? 1.0 : 0.0;
+        double p2Left = _input.IsLeftPressed() ? 1.0 : 0.0;
+        double p2Right = _input.IsRightPressed() ? 1.0 : 0.0;
+
+        // Update both players
+        _player1.UpdatePosition(p1Up, p1Down, p1Left, p1Right, 48, 48, msSinceLastFrame);
+        _player2.UpdatePosition(p2Up, p2Down, p2Left, p2Right, 48, 48, msSinceLastFrame);
         
         _scriptEngine.ExecuteAll(this);
 
-        if (addBomb)
-        {
-            AddBomb(_player.Position.X, _player.Position.Y, false);
-        }
-        
-        if (_player.IsDead())
+        // Game over if both players are dead
+        if (_player1.IsDead() && _player2.IsDead())
         {
             _isGameOver = true;
             _gameOverTime = currentTime;
@@ -134,8 +159,13 @@ public class Engine
         _renderer.SetDrawColor(0, 0, 0, 255);
         _renderer.ClearScreen();
 
-        var playerPosition = _player!.Position;
-        _renderer.CameraLookAt(playerPosition.X, playerPosition.Y);
+        // Camera follows midpoint between players
+        if (_player1 != null && _player2 != null)
+        {
+            var midX = (_player1.Position.X + _player2.Position.X) / 2;
+            var midY = (_player1.Position.Y + _player2.Position.Y) / 2;
+            _renderer.CameraLookAt(midX, midY);
+        }
 
         RenderTerrain();
         RenderAllObjects();
@@ -148,37 +178,112 @@ public class Engine
         _renderer.PresentFrame();
     }
 
-    public void RenderAllObjects()
+    public void AddBomb(int X, int Y, bool translateCoordinates = true)
+    {
+        var worldCoords = translateCoordinates ? _renderer.ToWorldCoordinates(X, Y) : new Vector2D<int>(X, Y);
+
+        SpriteSheet spriteSheet = SpriteSheet.Load(_renderer, "BombExploding.json", "Assets");
+        spriteSheet.ActivateAnimation("Explode");
+
+        TemporaryGameObject bomb = new(spriteSheet, 2.1, (worldCoords.X, worldCoords.Y));
+        _gameObjects.Add(bomb.Id, bomb);
+    }    public void AddHealthPowerUp(int X, int Y, bool translateCoordinates = true)
+    {
+        var worldCoords = translateCoordinates ? _renderer.ToWorldCoordinates(X, Y) : new Vector2D<int>(X, Y);        // Folosim un SpriteSheet gol pentru că desenăm direct în Render
+        SpriteSheet spriteSheet = SpriteSheet.CreateEmpty(_renderer);
+        var powerUp = new HealthPowerUpObject(spriteSheet, (worldCoords.X, worldCoords.Y));
+        _gameObjects.Add(powerUp.Id, powerUp);
+        Console.WriteLine($"Power-up added at position: {worldCoords.X}, {worldCoords.Y}");
+    }
+
+    private void HandlePowerUpCollision(PlayerObject player, TemporaryGameObject powerUp)
+    {
+        if (powerUp.Tag != "HealthPowerUp")
+        {
+            return;
+        }
+
+        var deltaX = Math.Abs(player.Position.X - powerUp.Position.X);
+        var deltaY = Math.Abs(player.Position.Y - powerUp.Position.Y);
+        
+        if (deltaX < 32 && deltaY < 32)
+        {
+            player.Heal(25); // Adaugă 25 puncte de viață
+            powerUp.ForceExpire(); // Face power-up-ul să dispară
+        }
+    }    public void RenderAllObjects()
     {
         var toRemove = new List<int>();
+        var toCollisionCheck = new List<TemporaryGameObject>();
+        
+        // Mai întâi renderăm toate obiectele și le adăugăm pentru verificări
         foreach (var gameObject in GetRenderables())
         {
             gameObject.Render(_renderer);
-            if (gameObject is TemporaryGameObject { IsExpired: true } tempGameObject)
+            if (gameObject is TemporaryGameObject tempObject)
             {
-                toRemove.Add(tempGameObject.Id);
+                if (tempObject.IsExpired)
+                {
+                    toRemove.Add(tempObject.Id);
+                }
+                else
+                {
+                    toCollisionCheck.Add(tempObject);
+                }
             }
         }
 
+        // Check collisions with both players
+        foreach (var obj in toCollisionCheck)
+        {
+            if (_player1 != null)
+            {
+                var deltaX1 = Math.Abs(_player1.Position.X - obj.Position.X);
+                var deltaY1 = Math.Abs(_player1.Position.Y - obj.Position.Y);
+                if (deltaX1 < 32 && deltaY1 < 32)
+                {
+                    if (obj.Tag == "HealthPowerUp")
+                    {
+                        _player1.Heal(25);
+                        obj.ForceExpire();
+                        toRemove.Add(obj.Id);
+                    }
+                    else
+                    {
+                        _player1.TakeDamage(25);
+                    }
+                }
+            }
+
+            if (_player2 != null)
+            {
+                var deltaX2 = Math.Abs(_player2.Position.X - obj.Position.X);
+                var deltaY2 = Math.Abs(_player2.Position.Y - obj.Position.Y);
+                if (deltaX2 < 32 && deltaY2 < 32)
+                {
+                    if (obj.Tag == "HealthPowerUp")
+                    {
+                        _player2.Heal(25);
+                        obj.ForceExpire();
+                        toRemove.Add(obj.Id);
+                    }
+                    else
+                    {
+                        _player2.TakeDamage(25);
+                    }
+                }
+            }
+        }
+
+        // Remove expired objects after collision checks
         foreach (var id in toRemove)
         {
-            _gameObjects.Remove(id, out var gameObject);
-
-            if (_player == null)
-            {
-                continue;
-            }            var tempGameObject = (TemporaryGameObject)gameObject!;
-            var deltaX = Math.Abs(_player.Position.X - tempGameObject.Position.X);
-            var deltaY = Math.Abs(_player.Position.Y - tempGameObject.Position.Y);
-            if (deltaX < 32 && deltaY < 32)
-            {
-                
-                _player.TakeDamage(25); 
-            }
+            _gameObjects.Remove(id);
         }
 
-        _player?.Render(_renderer);
-    }
+        // Render both players
+        _player1?.Render(_renderer);
+        _player2?.Render(_renderer);    }
 
     public void RenderTerrain()
     {
@@ -226,19 +331,10 @@ public class Engine
 
     public (int X, int Y) GetPlayerPosition()
     {
-        return _player!.Position;
+        return _player1!.Position;
     }
 
-    public void AddBomb(int X, int Y, bool translateCoordinates = true)
-    {
-        var worldCoords = translateCoordinates ? _renderer.ToWorldCoordinates(X, Y) : new Vector2D<int>(X, Y);
-
-        SpriteSheet spriteSheet = SpriteSheet.Load(_renderer, "BombExploding.json", "Assets");
-        spriteSheet.ActivateAnimation("Explode");
-
-        TemporaryGameObject bomb = new(spriteSheet, 2.1, (worldCoords.X, worldCoords.Y));
-        _gameObjects.Add(bomb.Id, bomb);
-    }    private void RenderGameOverMessage()
+    private void RenderGameOverMessage()
     {
         double elapsedSeconds = (_lastUpdate - _gameOverTime).TotalSeconds;
         if (elapsedSeconds < 0)

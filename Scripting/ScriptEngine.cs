@@ -4,11 +4,12 @@ using Microsoft.CodeAnalysis.CSharp;
 
 namespace TheAdventure.Scripting;
 
-public class ScriptEngine
+public class ScriptEngine : IDisposable
 {
     private PortableExecutableReference[] _scriptReferences;
-    private Dictionary<string, IScript> _scripts = new Dictionary<string, IScript>();
+    private Dictionary<string, (IScript Script, Assembly Assembly)> _scripts = new Dictionary<string, (IScript, Assembly)>();
     private FileSystemWatcher? _watcher;
+    private List<WeakReference> _loadedAssemblies = new List<WeakReference>();
 
     public ScriptEngine()
     {
@@ -43,6 +44,14 @@ public class ScriptEngine
         _scriptReferences = references.Select(x => MetadataReference.CreateFromFile(x)).ToArray();
     }
 
+    public void ExecuteAll(Engine engine)
+    {
+        foreach (var script in _scripts)
+        {
+            script.Value.Script.Execute(engine);
+        }
+    }
+
     public void UnloadAll()
     {
         if (_watcher != null)
@@ -53,47 +62,28 @@ public class ScriptEngine
             _watcher.Dispose();
             _watcher = null;
         }
+
+        foreach (var script in _scripts.Values)
+        {
+            if (script.Script is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
+        }
         
         _scripts.Clear();
         
+        // Force cleanup of loaded assemblies
+        for (int i = _loadedAssemblies.Count - 1; i >= 0; i--)
+        {
+            if (!_loadedAssemblies[i].IsAlive)
+            {
+                _loadedAssemblies.RemoveAt(i);
+            }
+        }
+        
         GC.Collect();
         GC.WaitForPendingFinalizers();
-    }
-
-    public void LoadAll(string scriptFolder)
-    {
-        AttachWatcher(scriptFolder);
-        var dirInfo = new DirectoryInfo(scriptFolder);
-        if (!dirInfo.Exists)
-        {
-            return;
-        }
-
-        foreach (var file in dirInfo.GetFiles())
-        {
-            if (!file.Name.EndsWith(".script.cs"))
-            {
-                continue;
-            }
-
-            try
-            {
-                Load(file.FullName);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Exception trying to load {file.FullName}");
-                Console.WriteLine(ex);
-            }
-        }
-    }
-
-    public void ExecuteAll(Engine engine)
-    {
-        foreach (var script in _scripts)
-        {
-            script.Value.Execute(engine);
-        }
     }
 
     private void AttachWatcher(string path)
@@ -131,12 +121,31 @@ public class ScriptEngine
         Console.WriteLine($"Loading script {file}");
         FileInfo fileInfo = new FileInfo(file);
         var fileOutput = fileInfo.FullName.Replace(fileInfo.Extension, ".dll");
+        
+        // Delete existing DLL if it exists to avoid file locks
+        if (File.Exists(fileOutput))
+        {
+            try
+            {
+                File.Delete(fileOutput);
+            }
+            catch (IOException)
+            {
+                // If file is locked, generate a new unique filename
+                fileOutput = fileInfo.FullName.Replace(fileInfo.Extension, $"_{Guid.NewGuid()}.dll");
+            }
+        }
+
         var code = File.ReadAllText(fileInfo.FullName);
         var syntaxTree = CSharpSyntaxTree.ParseText(code);
-        var compilation = CSharpCompilation.Create(fileInfo.Name.Replace(fileInfo.Extension, string.Empty),
+        var compilation = CSharpCompilation.Create(
+            fileInfo.Name.Replace(fileInfo.Extension, string.Empty),
             new[] { syntaxTree },
-            _scriptReferences, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-        using (var compiledScriptAssembly = new FileStream(fileOutput, FileMode.OpenOrCreate))
+            _scriptReferences,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
+        );
+
+        using (var compiledScriptAssembly = new FileStream(fileOutput, FileMode.Create))
         {
             var result = compilation.Emit(compiledScriptAssembly);
             if (!result.Success)
@@ -145,31 +154,78 @@ public class ScriptEngine
                 {
                     if (diag.Severity == DiagnosticSeverity.Error)
                     {
-                        Console.WriteLine(string.Join(";", diag.Descriptor.CustomTags));
-                        Console.WriteLine(
-                            $"{diag.Descriptor.MessageFormat.ToString()} - {code.Substring(diag.Location.SourceSpan.Start, diag.Location.SourceSpan.Length)} - {diag.Descriptor.HelpLinkUri.ToString()} - {diag.Location.ToString()}");
+                        Console.WriteLine($"{diag.Descriptor.MessageFormat} - {code.Substring(diag.Location.SourceSpan.Start, diag.Location.SourceSpan.Length)} - {diag.Descriptor.HelpLinkUri} - {diag.Location}");
                     }
                 }
-
                 throw new FileLoadException(file);
             }
         }
 
-        foreach (var type in Assembly.LoadFile(fileOutput).GetTypes())
+        Assembly assembly;
+        try
         {
-            if (type.IsAssignableTo(typeof(IScript)))
-            {
-                var instance = (IScript?)type.GetConstructor(Type.EmptyTypes)?.Invoke(null);
-                if (instance != null)
-                {
-                    instance.Initialize();
-                    _scripts.Add(file, instance);
-                }
+            // Load assembly from bytes to avoid file locks
+            byte[] assemblyBytes = File.ReadAllBytes(fileOutput);
+            assembly = Assembly.Load(assemblyBytes);
+            _loadedAssemblies.Add(new WeakReference(assembly));
 
-                return instance;
+            foreach (var type in assembly.GetTypes())
+            {
+                if (type.IsAssignableTo(typeof(IScript)))
+                {
+                    var instance = (IScript?)type.GetConstructor(Type.EmptyTypes)?.Invoke(null);
+                    if (instance != null)
+                    {
+                        instance.Initialize();
+                        _scripts[file] = (instance, assembly);
+                        return instance;
+                    }
+                }
             }
+        }
+        finally
+        {
+            // Clean up the temporary DLL file
+            try
+            {
+                File.Delete(fileOutput);
+            }
+            catch { /* Ignore cleanup errors */ }
         }
 
         return null;
+    }
+
+    public void LoadAll(string scriptFolder)
+    {
+        AttachWatcher(scriptFolder);
+        var dirInfo = new DirectoryInfo(scriptFolder);
+        if (!dirInfo.Exists)
+        {
+            return;
+        }
+
+        foreach (var file in dirInfo.GetFiles())
+        {
+            if (!file.Name.EndsWith(".script.cs"))
+            {
+                continue;
+            }
+
+            try
+            {
+                Load(file.FullName);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Exception trying to load {file.FullName}");
+                Console.WriteLine(ex);
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        UnloadAll();
     }
 }

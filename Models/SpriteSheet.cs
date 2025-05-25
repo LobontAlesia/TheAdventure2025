@@ -79,6 +79,15 @@ public class SpriteSheet
         }
 
         return spriteSheet;
+    }    public static SpriteSheet CreateEmpty(GameRenderer renderer)
+    {
+        return new SpriteSheet
+        {
+            RowCount = 1,
+            ColumnCount = 1,
+            FrameWidth = 1,
+            FrameHeight = 1
+        };
     }
 
     public void ActivateAnimation(string? name)

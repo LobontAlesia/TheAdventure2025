@@ -1,0 +1,23 @@
+{
+    "fileName": "power.png",
+    "frameWidth": 64,
+    "frameHeight": 64,
+    "rowCount": 1,
+    "columnCount": 1,    "frameCenter": {
+        "offsetX": 32,
+        "offsetY": 32
+    },"animations": {
+        "Shine": {
+            "startFrame": {
+                "row": 0,
+                "col": 0
+            },
+            "endFrame": {
+                "row": 0,
+                "col": 0
+            },
+            "durationMs": 800,
+            "loop": true
+        }
+    }
+}
